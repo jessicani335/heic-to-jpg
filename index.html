@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>HEIC to JPG Converter (Local)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; line-height: 1.4; }
+    .card { max-width: 720px; padding: 18px; border: 1px solid #ddd; border-radius: 12px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button { padding: 10px 14px; border-radius: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .meta { color: #555; font-size: 14px; }
+    img { max-width: 100%; height: auto; border-radius: 12px; border: 1px solid #eee; margin-top: 14px; }
+    .err { color: #b00020; font-weight: 600; }
+    .ok { color: #0a7a2f; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>HEIC/HEIF → JPG (in your browser)</h2>
+    <p class="meta">Select a .heic/.heif file, convert, then download the JPG.</p>
+
+    <div class="row">
+      <input id="file" type="file" accept=".heic,.heif,image/heic,image/heif" />
+      <button id="convert" disabled>Convert to JPG</button>
+      <a id="download" style="display:none;" download="converted.jpg">
+        <button>Download JPG</button>
+      </a>
+    </div>
+
+    <p id="status" class="meta"></p>
+    <p id="error" class="err" style="display:none;"></p>
+
+    <img id="preview" alt="Preview" style="display:none;" />
+
+    <!-- HEIC decoder library -->
+    <script src="https://unpkg.com/heic2any/dist/heic2any.min.js"></script>
+    <script>
+      const fileInput = document.getElementById("file");
+      const btnConvert = document.getElementById("convert");
+      const statusEl = document.getElementById("status");
+      const errEl = document.getElementById("error");
+      const preview = document.getElementById("preview");
+      const downloadLink = document.getElementById("download");
+
+      let selectedFile = null;
+
+      function setStatus(msg, ok=false) {
+        statusEl.textContent = msg || "";
+        statusEl.className = ok ? "meta ok" : "meta";
+      }
+
+      function setError(msg) {
+        if (!msg) {
+          errEl.style.display = "none";
+          errEl.textContent = "";
+          return;
+        }
+        errEl.style.display = "block";
+        errEl.textContent = msg;
+      }
+
+      fileInput.addEventListener("change", () => {
+        setError("");
+        downloadLink.style.display = "none";
+        preview.style.display = "none";
+        preview.src = "";
+
+        selectedFile = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+        btnConvert.disabled = !selectedFile;
+
+        if (selectedFile) {
+          setStatus(`Selected: ${selectedFile.name} (${Math.round(selectedFile.size/1024)} KB)`);
+        } else {
+          setStatus("");
+        }
+      });
+
+      btnConvert.addEventListener("click", async () => {
+        if (!selectedFile) return;
+
+        setError("");
+        setStatus("Converting…");
+
+        try {
+          // Convert HEIC/HEIF to JPEG Blob
+          const jpegBlob = await heic2any({
+            blob: selectedFile,
+            toType: "image/jpeg",
+            quality: 0.92
+          });
+
+          // heic2any can return Blob or Array of Blobs depending on input
+          const outBlob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+
+          // Create URL for preview + download
+          const url = URL.createObjectURL(outBlob);
+
+          // Preview
+          preview.src = url;
+          preview.style.display = "block";
+
+          // Download name (keep base name)
+          const baseName = selectedFile.name.replace(/\.(heic|heif)$/i, "");
+          downloadLink.href = url;
+          downloadLink.download = `${baseName || "converted"}.jpg`;
+          downloadLink.style.display = "inline-block";
+
+          setStatus("Done. Preview shown below — click Download JPG.", true);
+        } catch (e) {
+          console.error(e);
+          setStatus("");
+          setError(
+            "Couldn’t convert this file. Try a different browser (Chrome/Edge usually works), " +
+            "or confirm the file is a valid HEIC/HEIF image."
+          );
+        }
+      });
+    </script>
+  </div>
+</body>
+</html>
